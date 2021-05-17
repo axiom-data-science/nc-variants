@@ -111,14 +111,14 @@ cat $(find "$OUTDIR/" -name 'nc.wgron') | \
   | grep -v '= {};$\|= \[\];$' | sed 's/|json\./|/' | sort -t '|' -k3 > "$OUTDIR/nc-variants.tmp"
 
 #loop through the gron value report and under each non-standard gron value (below the SHOW_FILES_THRESHOLD_PERCENT)
-#append the lis of files containing that value
-while read; do
+#append the list of files containing that value
+while read -r; do
   #REPLY is set if no var name is specified in `read` above, AND it preserves leading whitespace!
   echo "$REPLY" | tr '|' ' ' >> "$OUTDIR/nc-variants.out"
-  PERCENT=$(echo $REPLY | cut -d . -f 1)
+  PERCENT=$(echo "$REPLY" | cut -d . -f 1)
 
   if [ $PERCENT -lt $SHOW_FILES_THRESHOLD_PERCENT ]; then
-    TOKEN=$(echo $REPLY | cut -d '|' -f 3)
+    TOKEN=$(echo "$REPLY" | cut -d '|' -f 3)
     ./nc-variant-files.sh -o "$OUTDIR" "$TOKEN" | awk '{print "    " $0}' >> "$OUTDIR/nc-variants.out"
   fi
 done < "$OUTDIR/nc-variants.tmp"

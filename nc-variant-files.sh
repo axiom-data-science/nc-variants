@@ -35,4 +35,5 @@ fi
 
 TOKEN="$1"
 
-cat $(grep -Rl "$TOKEN" out/*/nc.gron | sed 's/nc\.gron$/files/') | sort
+#give cat /dev/null so it doesn't hang trying to read stdin if no files matched
+cat /dev/null $(grep -RlF "$TOKEN" out/*/nc.gron | sed 's/nc\.gron$/files/') | sort
