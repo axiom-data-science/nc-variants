@@ -9,7 +9,7 @@ Analyze a directory structure containing netcdf files for variance in dimension 
        (example `'.variables.time.attributes.units,.attributes.title'`).
        `.attributes.history` is always ignored/
 * `-o` Output directory for report generation (default `out`)
-* '-t` Occurence percentage threshold below which non-standard values should have their files listed
+* `-t` Occurence percentage threshold below which non-standard values should have their files listed
        in the report (default 50%)
 
 ## Example invocation
