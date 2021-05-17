@@ -1,5 +1,10 @@
 FROM mambaorg/micromamba:0.11.3
 
+ENV DEBIAN_FRONTEND noninteractive
+RUN apt-get update && \
+    apt-get install -y less mawk sed && \
+    rm -rf /var/lib/apt/lists/*
+
 ENV BASH_ENV /etc/bash.bashrc
 
 COPY environment.yml /root/environment.yml
