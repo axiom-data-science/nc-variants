@@ -5,7 +5,7 @@ set -eu -o pipefail
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 cd "$DIR"
 
-for c in awk gron jq md5sum ncks; do
+for c in awk gron jq md5sum ncks sed; do
   if ! command -v $c &> /dev/null; then
     echo "$c is required" >&2
     exit 1
@@ -94,30 +94,40 @@ find "$NCDIR" -name '*.nc' | while read -r nc; do
   echo "$nc" >> "$OUTDIR/$MD5/files"
 done
 
+#prepend each line of each gron file with the number of nc files with this format for later summing
 find "$OUTDIR/" -mindepth 1 -maxdepth 1 -type d | while read -r variant; do
   awk -v files=$(wc -l < $variant/files) '{print files "|" $0}' $variant/nc.gron > $variant/nc.wgron
 done
 
 #make variance report
+
+#cat together all of the nc.wgron files (containing number of files with each format as a first column), and then
+#sum up the number of files containing each gron value. "json = {};" is summed as a special case to get the total
+#number of files (all files are guaranteed to have this since its the root of the json document)
+#create a report file with the frequency (percent and ratio) of each gron value, removing the array and object initializers
+#also remove the 'json.' prefix from each gron value
 cat $(find "$OUTDIR/" -name 'nc.wgron') | \
   awk -F '|' '{c[$2]+=$1} $2=="json = {};" {total_files+=$1 } END {for (l in c) printf "%5.1f%%|(%" length(total_files) "i/%i)|%s\n", c[l]*100/total_files, c[l], total_files, l}' \
-  | grep -v '= {};$\|= \[\];$' | sort -t '|' -k3 > "$OUTDIR/nc-variance.tmp"
+  | grep -v '= {};$\|= \[\];$' | sed 's/|json\./|/' | sort -t '|' -k3 > "$OUTDIR/nc-variants.tmp"
 
+#loop through the gron value report and under each non-standard gron value (below the SHOW_FILES_THRESHOLD_PERCENT)
+#append the lis of files containing that value
 while read; do
-  #REPLY is set if no var name is specified above, AND it preserves leading whitespace
-  echo "$REPLY" | tr '|' ' ' >> "$OUTDIR/nc-variance.out"
+  #REPLY is set if no var name is specified in `read` above, AND it preserves leading whitespace!
+  echo "$REPLY" | tr '|' ' ' >> "$OUTDIR/nc-variants.out"
   PERCENT=$(echo $REPLY | cut -d . -f 1)
 
   if [ $PERCENT -lt $SHOW_FILES_THRESHOLD_PERCENT ]; then
     TOKEN=$(echo $REPLY | cut -d '|' -f 3)
-    ./nc-variant-files.sh -o "$OUTDIR" "$TOKEN" | awk '{print "    " $0}' >> "$OUTDIR/nc-variance.out"
+    ./nc-variant-files.sh -o "$OUTDIR" "$TOKEN" | awk '{print "    " $0}' >> "$OUTDIR/nc-variants.out"
   fi
-done < "$OUTDIR/nc-variance.tmp"
+done < "$OUTDIR/nc-variants.tmp"
 
-rm "$OUTDIR/nc-variance.tmp"
+rm "$OUTDIR/nc-variants.tmp"
 
+#show final report in less if less if present and this is a tty, otherwise cat it
 if command -v less &> /dev/null && [ -t 1 ]; then
-  less "$OUTDIR/nc-variance.out"
+  less "$OUTDIR/nc-variants.out"
 else
-  cat "$OUTDIR/nc-variance.out"
+  cat "$OUTDIR/nc-variants.out"
 fi

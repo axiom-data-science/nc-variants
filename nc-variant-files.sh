@@ -5,7 +5,7 @@ set -eu -o pipefail
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 cd "$DIR"
 
-for c in awk; do
+for c in sed; do
   if ! command -v $c &> /dev/null; then
     echo "$c is required" >&2
     exit 1
@@ -35,4 +35,4 @@ fi
 
 TOKEN="$1"
 
-cat $(grep -Rl "$TOKEN" out/*/nc.gron | awk '{gsub("/nc.gron$","/files", $0); print $0}') | sort
+cat $(grep -Rl "$TOKEN" out/*/nc.gron | sed 's/nc\.gron$/files/') | sort
