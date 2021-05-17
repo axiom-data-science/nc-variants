@@ -5,7 +5,7 @@ set -eu -o pipefail
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 cd "$DIR"
 
-for c in awk gron jq md5sum ncks sed; do
+for c in awk bc gron jq md5sum ncks sed; do
   if ! command -v $c &> /dev/null; then
     echo "$c is required" >&2
     exit 1
@@ -112,13 +112,37 @@ cat $(find "$OUTDIR/" -name 'nc.wgron') | \
 
 #loop through the gron value report and under each non-standard gron value (below the SHOW_FILES_THRESHOLD_PERCENT)
 #append the list of files containing that value
+LASTKEY=""
+LASTKEY_PERCENT_DECIMAL=0
+LASTKEY_TOTAL_FILES=0
 while read -r; do
   #REPLY is set if no var name is specified in `read` above, AND it preserves leading whitespace!
-  echo "$REPLY" | tr '|' ' ' >> "$OUTDIR/nc-variants.out"
   PERCENT=$(echo "$REPLY" | cut -d . -f 1)
+  PERCENT_DECIMAL=$(echo "$REPLY" | cut -d % -f 1)
+  TOKEN=$(echo "$REPLY" | cut -d '|' -f 3)
+  KEY=$(echo "$TOKEN" | cut -d ' ' -f 1)
+  KEY_TOTAL_FILES=$(echo "$REPLY" | sed 's|[()]|/|g' | cut -d '/' -f 3)
 
-  if [ $PERCENT -lt $SHOW_FILES_THRESHOLD_PERCENT ]; then
-    TOKEN=$(echo "$REPLY" | cut -d '|' -f 3)
+  #first check if we need to check for missing values from the last key
+  if [ -n "$LASTKEY" ] && [ "$KEY" != "$LASTKEY" ]; then
+    FILES_MISSING_KEY="$(./nc-variant-files.sh -m -o "$OUTDIR" "$LASTKEY")"
+    if [ -n "$FILES_MISSING_KEY" ]; then
+      NUM_FILES_MISSING_KEY=$(echo "$FILES_MISSING_KEY" | wc -l)
+      TOTAL_FILES_CHAR_LENGTH=$(echo "$LASTKEY_TOTAL_FILES" | wc -c)
+      MISSING_PERCENT=$(echo "100.0 - $LASTKEY_PERCENT_DECIMAL" | bc)
+      if [ $(echo "$MISSING_PERCENT < $SHOW_FILES_THRESHOLD_PERCENT" | bc) -eq 1 ]; then
+        printf "%5.1f%% (%${TOTAL_FILES_CHAR_LENGTH}i/%i) %s = null\n" "$MISSING_PERCENT" "$NUM_FILES_MISSING_KEY" "$LASTKEY_TOTAL_FILES" "$LASTKEY" >> "$OUTDIR/nc-variants.out"
+        echo "$FILES_MISSING_KEY" | awk '{print "    " $0}' >> "$OUTDIR/nc-variants.out"
+      fi
+    fi
+    LASTKEY_PERCENT_DECIMAL=0
+  fi
+  LASTKEY="$KEY"
+  LASTKEY_PERCENT_DECIMAL=$(echo "$LASTKEY_PERCENT_DECIMAL + $PERCENT_DECIMAL" | bc)
+  LASTKEY_TOTAL_FILES="$KEY_TOTAL_FILES"
+
+  echo "$REPLY" | tr '|' ' ' >> "$OUTDIR/nc-variants.out"
+  if [ $(echo "$PERCENT < $SHOW_FILES_THRESHOLD_PERCENT" | bc) -eq 1 ]; then
     ./nc-variant-files.sh -o "$OUTDIR" "$TOKEN" | awk '{print "    " $0}' >> "$OUTDIR/nc-variants.out"
   fi
 done < "$OUTDIR/nc-variants.tmp"

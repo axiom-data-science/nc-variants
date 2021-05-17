@@ -13,8 +13,12 @@ for c in sed; do
 done
 
 OUTDIR=out
-while getopts ":o:" opt; do
+GREP_FILE_LIST_ARG="-l" #by default show all files matching
+while getopts ":mo:" opt; do
   case ${opt} in
+    m )
+      GREP_FILE_LIST_ARG="-L" #optionally show all files not matching
+      ;;
     o )
       OUTDIR=$OPTARG
       ;;
@@ -36,4 +40,4 @@ fi
 TOKEN="$1"
 
 #give cat /dev/null so it doesn't hang trying to read stdin if no files matched
-cat /dev/null $(grep -RlF "$TOKEN" out/*/nc.gron | sed 's/nc\.gron$/files/') | sort
+cat /dev/null $(grep $GREP_FILE_LIST_ARG -RF "$TOKEN" out/*/nc.gron | sed 's/nc\.gron$/files/') | sort
