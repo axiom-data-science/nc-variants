@@ -40,4 +40,4 @@ fi
 TOKEN="$1"
 
 #give cat /dev/null so it doesn't hang trying to read stdin if no files matched
-cat /dev/null $(grep $GREP_FILE_LIST_ARG -RF "$TOKEN" out/*/nc.gron | sed 's/nc\.gron$/files/') | sort
+cat /dev/null $(grep $GREP_FILE_LIST_ARG -RF "$TOKEN" $OUTDIR/*/nc.gron | sed 's/nc\.gron$/files/') | sort
