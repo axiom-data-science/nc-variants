@@ -29,6 +29,7 @@ docker run --rm -v /path/to/some/data/raw/2021:/data:ro registry.axiom/nc-varian
 
 * conda (create environment from `environment.yml`)
 * awk
+* bc
 * sed
 
 ## How it works
