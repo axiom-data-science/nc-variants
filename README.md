@@ -7,7 +7,7 @@ Analyze a directory structure containing netcdf files for variance in dimension 
 * `-q` Don't print log messages about progress, just the final output
 * `-i` CSV of nco-json fields to ignore, in jq format
        (example `'.variables.time.attributes.units,.attributes.title'`).
-       `.attributes.history` is always ignored/
+       `.attributes.history` is always ignored.
 * `-o` Output directory for report generation (default `out`)
 * `-t` Occurence percentage threshold below which non-standard values should have their files listed
        in the report (default 50%)
