@@ -21,7 +21,7 @@ Analyze a directory structure containing netcdf files for variance in dimension 
 ## Docker invocation
 
 ```
-docker run --rm -v /path/to/some/data/raw/2021:/data:ro registry.axiom/nc-variants \
+docker run --rm -v /path/to/some/data/raw/2021:/data:ro axiom/nc-variants \
   ./nc-variants.sh -i .variables.time.attributes.units,.attributes.title,.attributes.NCO /data
 ```
 
