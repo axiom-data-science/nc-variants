@@ -2,9 +2,6 @@
 
 set -eu -o pipefail
 
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-cd "$DIR"
-
 for c in sed; do
   if ! command -v $c &> /dev/null; then
     echo "$c is required" >&2

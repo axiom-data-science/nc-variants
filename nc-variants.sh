@@ -3,7 +3,6 @@
 set -eu -o pipefail
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-cd "$DIR"
 
 for c in awk bc gron jq md5sum ncks sed; do
   if ! command -v $c &> /dev/null; then
@@ -94,6 +93,8 @@ find "$NCDIR" -name '*.nc' | while read -r nc; do
   echo "$nc" >> "$OUTDIR/$MD5/files"
 done
 
+log "Generating report..."
+
 #prepend each line of each gron file with the number of nc files with this format for later summing
 find "$OUTDIR/" -mindepth 1 -maxdepth 1 -type d | while read -r variant; do
   awk -v files=$(wc -l < $variant/files) '{print files "|" $0}' $variant/nc.gron > $variant/nc.wgron
@@ -125,7 +126,7 @@ while read -r; do
 
   #first check if we need to check for missing values from the last key
   if [ -n "$LASTKEY" ] && [ "$KEY" != "$LASTKEY" ]; then
-    FILES_MISSING_KEY="$(./nc-variant-files.sh -m -o "$OUTDIR" "$LASTKEY")"
+    FILES_MISSING_KEY="$("$DIR/nc-variant-files.sh" -m -o "$OUTDIR" "$LASTKEY")"
     if [ -n "$FILES_MISSING_KEY" ]; then
       NUM_FILES_MISSING_KEY=$(echo "$FILES_MISSING_KEY" | wc -l)
       TOTAL_FILES_CHAR_LENGTH=$(echo "$LASTKEY_TOTAL_FILES" | wc -c)
@@ -143,7 +144,7 @@ while read -r; do
 
   echo "$REPLY" | tr '|' ' ' >> "$OUTDIR/nc-variants.out"
   if [ $(echo "$PERCENT < $SHOW_FILES_THRESHOLD_PERCENT" | bc) -eq 1 ]; then
-    ./nc-variant-files.sh -o "$OUTDIR" "$TOKEN" | awk '{print "    " $0}' >> "$OUTDIR/nc-variants.out"
+    "$DIR/nc-variant-files.sh" -o "$OUTDIR" "$TOKEN" | awk '{print "    " $0}' >> "$OUTDIR/nc-variants.out"
   fi
 done < "$OUTDIR/nc-variants.tmp"
 
