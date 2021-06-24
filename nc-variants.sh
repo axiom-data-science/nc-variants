@@ -91,9 +91,16 @@ find "$NCDIR" -name '*.nc' | while read -r nc; do
   fi
 
   echo "$nc" >> "$OUTDIR/$MD5/files"
+
+  #log start and end times for file
+  TIMES=$(ncks --json -v time --dt_fmt=3 "$nc" | jq -r '.variables.time.data | "\(length) \(first)Z \(last)Z"')
+  echo "$nc" "$TIMES" >> "$OUTDIR/times"
 done
 
 log "Generating report..."
+
+#sort start/end times
+sort -o "$OUTDIR/times" "$OUTDIR/times"
 
 #prepend each line of each gron file with the number of nc files with this format for later summing
 find "$OUTDIR/" -mindepth 1 -maxdepth 1 -type d | while read -r variant; do
