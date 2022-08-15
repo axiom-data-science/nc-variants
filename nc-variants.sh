@@ -15,8 +15,9 @@ OUTDIR=out
 IGNORE_FIELDS=".attributes.history"
 SHOW_FILES_THRESHOLD_PERCENT=50
 QUIET=0
+TIME_VAR=time
 
-while getopts ":i:o:qt:" opt; do
+while getopts ":i:o:pqt:" opt; do
   case ${opt} in
     i )
       IGNORE_FIELDS="$IGNORE_FIELDS,$OPTARG"
@@ -27,8 +28,11 @@ while getopts ":i:o:qt:" opt; do
     q )
       QUIET=1
       ;;
-    t )
+    p )
       SHOW_FILES_THRESHOLD_PERCENT=$OPTARG
+      ;;
+    t )
+      TIME_VAR=$OPTARG
       ;;
     \? )
       echo "Invalid option: $OPTARG" 1>&2
@@ -93,7 +97,7 @@ find "$NCDIR" -name '*.nc' | while read -r nc; do
   echo "$nc" >> "$OUTDIR/$MD5/files"
 
   #log start and end times for file
-  TIMES=$(ncks --json -v time --dt_fmt=3 "$nc" | jq -r '.variables.time.data | "\(length) \(first)Z \(last)Z"')
+  TIMES=$(ncks --json -v ${TIME_VAR} --dt_fmt=3 "$nc" | jq -r --arg TIMEVAR ${TIME_VAR} '.variables[$TIMEVAR].data | "\(length) \(first)Z \(last)Z"')
   echo "$nc" "$TIMES" >> "$OUTDIR/times"
 done
 
