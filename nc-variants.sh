@@ -76,38 +76,52 @@ mkdir -p "$OUTDIR"
 
 function log() {
   if [ $QUIET -ne 1 ]; then
-    echo "$1"
+    echo "$1" >&2
   fi
 }
 
 log "Scanning $NCDIR"
 
-find "$NCDIR" -name '*.nc' | while read -r nc; do
-  log "Checking $nc"
+mkdir -p "$OUTDIR/ncjson"
 
-  NCJSON=$(ncks --json -mM "$nc" | jq "del($IGNORE_FIELDS)")
-  MD5=$(printf '%s' "$NCJSON" | md5sum | awk '{print $1}')
-  if [ ! -d "$OUTDIR/$MD5" ]; then
+function get_nc_data() {
+  NCDIR="$1"
+  OUTDIR="$2"
+  NCPATH="$3"
+  TIME_VAR="$4"
+  IGNORE_FIELDS="$5"
+  NC="${NCDIR}/${NCPATH}"
+  mkdir -p "$OUTDIR/ncjson/$(dirname ${NCPATH})"
+  ncks --json -mM "$NC" | jq "del($IGNORE_FIELDS)" > $OUTDIR/ncjson/${NCPATH}.json
+  echo $NC $(ncks --json -v ${TIME_VAR} --dt_fmt=3 "$NC" | jq -r --arg TIMEVAR ${TIME_VAR} '.variables[$TIMEVAR].data | "\(length) \(first)Z \(last)Z"') >> "$OUTDIR/times"
+}
+
+export -f get_nc_data
+
+(cd "$NCDIR" && find . -name '*.nc') | xargs -I {} -P 8 bash -c 'get_nc_data "$@"' _ "$NCDIR" "$OUTDIR" "{}" "$TIME_VAR" "$IGNORE_FIELDS"
+
+find "$OUTDIR/ncjson" -type f -name "*.json" | while read -r NCJSON; do
+  MD5=$(md5sum $NCJSON | awk '{print $1}')
+
+  if [ ! -d "$OUTDIR/variants/$MD5" ]; then
     log "Found new variant $MD5"
-    mkdir "$OUTDIR/$MD5"
-    echo "$NCJSON" > "$OUTDIR/$MD5/nc.json"
-    gron "$OUTDIR/$MD5/nc.json" > "$OUTDIR/$MD5/nc.gron"
+    mkdir -p "$OUTDIR/variants/$MD5"
+    cp "$NCJSON" "$OUTDIR/variants/$MD5/nc.json"
+    gron "$OUTDIR/variants/$MD5/nc.json" > "$OUTDIR/variants/$MD5/nc.gron"
   fi
 
-  echo "$nc" >> "$OUTDIR/$MD5/files"
-
-  #log start and end times for file
-  TIMES=$(ncks --json -v ${TIME_VAR} --dt_fmt=3 "$nc" | jq -r --arg TIMEVAR ${TIME_VAR} '.variables[$TIMEVAR].data | "\(length) \(first)Z \(last)Z"')
-  echo "$nc" "$TIMES" >> "$OUTDIR/times"
+  echo "$NCJSON" >> "$OUTDIR/variants/$MD5/files"
 done
 
 log "Generating report..."
 
 #sort start/end times
+log "Sorting times"
 sort -o "$OUTDIR/times" "$OUTDIR/times"
 
 #prepend each line of each gron file with the number of nc files with this format for later summing
-find "$OUTDIR/" -mindepth 1 -maxdepth 1 -type d | while read -r variant; do
+log "Prepending num files to gron"
+find "$OUTDIR/variants" -mindepth 1 -maxdepth 1 -type d | while read -r variant; do
   awk -v files=$(wc -l < $variant/files) '{print files "|" $0}' $variant/nc.gron > $variant/nc.wgron
 done
 
@@ -118,7 +132,8 @@ done
 #number of files (all files are guaranteed to have this since its the root of the json document)
 #create a report file with the frequency (percent and ratio) of each gron value, removing the array and object initializers
 #also remove the 'json.' prefix from each gron value
-cat $(find "$OUTDIR/" -name 'nc.wgron') | \
+log "Catting nc.wgron files"
+cat $(find "$OUTDIR/variants" -name 'nc.wgron') | \
   awk -F '|' '{c[$2]+=$1} $2=="json = {};" {total_files+=$1 } END {for (l in c) printf "%5.1f%%|(%" length(total_files) "i/%i)|%s\n", c[l]*100/total_files, c[l], total_files, l}' \
   | grep -v '= {};$\|= \[\];$' | sed 's/|json\./|/' | sort -t '|' -k3 > "$OUTDIR/nc-variants.tmp"
 
@@ -127,9 +142,20 @@ cat $(find "$OUTDIR/" -name 'nc.wgron') | \
 LASTKEY=""
 LASTKEY_PERCENT_DECIMAL=0
 LASTKEY_TOTAL_FILES=0
+log "Looping through report"
 while read -r; do
   #REPLY is set if no var name is specified in `read` above, AND it preserves leading whitespace!
   PERCENT=$(echo "$REPLY" | cut -d . -f 1)
+
+  if [ "$PERCENT" -eq 100 ]; then
+    #short circuit if this attribute is 100% consistent
+    LASTKEY=""
+    LASTKEY_PERCENT_DECIMAL=0
+    LASTKEY_TOTAL_FILES=0
+    echo "$REPLY" | tr '|' ' '
+    continue
+  fi
+
   PERCENT_DECIMAL=$(echo "$REPLY" | cut -d % -f 1)
   TOKEN=$(echo "$REPLY" | cut -d '|' -f 3)
   KEY=$(echo "$TOKEN" | cut -d ' ' -f 1)
@@ -143,21 +169,22 @@ while read -r; do
       TOTAL_FILES_CHAR_LENGTH=$(echo "$LASTKEY_TOTAL_FILES" | wc -c)
       MISSING_PERCENT=$(echo "100.0 - $LASTKEY_PERCENT_DECIMAL" | bc)
       if [ $(echo "$MISSING_PERCENT < $SHOW_FILES_THRESHOLD_PERCENT" | bc) -eq 1 ]; then
-        printf "%5.1f%% (%${TOTAL_FILES_CHAR_LENGTH}i/%i) %s = null\n" "$MISSING_PERCENT" "$NUM_FILES_MISSING_KEY" "$LASTKEY_TOTAL_FILES" "$LASTKEY" >> "$OUTDIR/nc-variants.out"
-        echo "$FILES_MISSING_KEY" | awk '{print "    " $0}' >> "$OUTDIR/nc-variants.out"
+        printf "%5.1f%% (%${TOTAL_FILES_CHAR_LENGTH}i/%i) %s = null\n" "$MISSING_PERCENT" "$NUM_FILES_MISSING_KEY" "$LASTKEY_TOTAL_FILES" "$LASTKEY"
+        echo "$FILES_MISSING_KEY" | awk '{print "    " $0}'
       fi
     fi
     LASTKEY_PERCENT_DECIMAL=0
   fi
+
   LASTKEY="$KEY"
   LASTKEY_PERCENT_DECIMAL=$(echo "$LASTKEY_PERCENT_DECIMAL + $PERCENT_DECIMAL" | bc)
   LASTKEY_TOTAL_FILES="$KEY_TOTAL_FILES"
 
-  echo "$REPLY" | tr '|' ' ' >> "$OUTDIR/nc-variants.out"
+  echo "$REPLY" | tr '|' ' '
   if [ $(echo "$PERCENT < $SHOW_FILES_THRESHOLD_PERCENT" | bc) -eq 1 ]; then
-    "$DIR/nc-variant-files.sh" -o "$OUTDIR" "$TOKEN" | awk '{print "    " $0}' >> "$OUTDIR/nc-variants.out"
+    "$DIR/nc-variant-files.sh" -o "$OUTDIR" "$TOKEN" | awk '{print "    " $0}'
   fi
-done < "$OUTDIR/nc-variants.tmp"
+done < "$OUTDIR/nc-variants.tmp" > "$OUTDIR/nc-variants.out"
 
 rm "$OUTDIR/nc-variants.tmp"
 
