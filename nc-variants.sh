@@ -11,6 +11,12 @@ for c in awk bc gron jq md5sum ncks sed; do
   fi
 done
 
+function log() {
+  if [ $QUIET -ne 1 ]; then
+    echo "$1" >&2
+  fi
+}
+
 OUTDIR=out
 IGNORE_FIELDS=".attributes.history"
 SHOW_FILES_THRESHOLD_PERCENT=50
@@ -68,17 +74,11 @@ fi
 
 if [ -d "$OUTDIR" ]; then
   if [ $QUIET -ne 1 ]; then
-    echo "$OUTDIR exists, deleting old contents..."
+    log "$OUTDIR exists, deleting old contents..."
   fi
   rm -rf "$OUTDIR"/*
 fi
 mkdir -p "$OUTDIR"
-
-function log() {
-  if [ $QUIET -ne 1 ]; then
-    echo "$1" >&2
-  fi
-}
 
 log "Scanning $NCDIR"
 
