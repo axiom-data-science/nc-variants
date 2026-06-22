@@ -4,7 +4,7 @@ channels:
   - axiom-data-science
   - defaults
 dependencies:
-  - gron=0.6.1
-  - jq=1.7.1
-  - netcdf4=1.7.1
-  - nco=5.2.7
+  - gron=0.7.1
+  - jq=1.8.1
+  - netcdf4=1.7.4
+  - nco=5.3.9
